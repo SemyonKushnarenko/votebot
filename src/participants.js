@@ -1,7 +1,15 @@
 import { escapeHtml, fmtMoney } from './format.js';
 import { nowMs } from './db.js';
 
+export function scheduledMessageExists(db, scheduledMessageId) {
+  const row = db.prepare('SELECT 1 AS ok FROM scheduled_messages WHERE id = ?').get(scheduledMessageId);
+  return Boolean(row);
+}
+
+/** @returns {boolean} false if parent row is missing (stale button / other DB) */
 export function setParticipantStatus(db, scheduledMessageId, user, status) {
+  if (!scheduledMessageExists(db, scheduledMessageId)) return false;
+
   const username = user.username ? String(user.username) : null;
   const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim() || username || String(user.id);
   db.prepare(
@@ -12,6 +20,7 @@ export function setParticipantStatus(db, scheduledMessageId, user, status) {
     DO UPDATE SET username=excluded.username, display_name=excluded.display_name, status=excluded.status, updated_at=excluded.updated_at
   `
   ).run(scheduledMessageId, user.id, username, displayName, status, nowMs());
+  return true;
 }
 
 export function getMessageSnapshot(db, scheduledMessageId) {

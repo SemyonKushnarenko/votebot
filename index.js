@@ -84,7 +84,16 @@ async function main() {
           return;
         }
 
-        setParticipantStatus(db, scheduledMessageId, query.from, status);
+        const applied = setParticipantStatus(db, scheduledMessageId, query.from, status);
+        if (!applied) {
+          await bot
+            .answerCallbackQuery(query.id, {
+              text: 'Сообщение устарело или данные недоступны на этом сервере. Отправьте новое через /new.'
+            })
+            .catch(() => {});
+          return;
+        }
+
         await refreshMessage({ db, bot, scheduledMessageId });
 
         await bot.answerCallbackQuery(query.id, { text: status === 'yes' ? 'Записал ✅' : status === 'half' ? '50/50 ✅' : 'Убрал ✅' }).catch(

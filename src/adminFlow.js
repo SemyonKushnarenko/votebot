@@ -5,6 +5,7 @@ import { nowMs } from './db.js';
 import { attendanceKeyboard } from './participants.js';
 import { refreshMessage } from './scheduler.js';
 import { config } from './config.js';
+import { logger } from './logger.js';
 
 const Steps = {
   pickGroup: 'pickGroup',
@@ -156,6 +157,14 @@ export async function handleWizardCallback({ db, bot, query }) {
 
       await refreshMessage({ db, bot, scheduledMessageId });
 
+      await replacePinnedAttendanceMessage({
+        db,
+        bot,
+        chatId: d.targetChatId,
+        newMessageId: sent.message_id,
+        scheduledMessageId
+      });
+
       clearSession(db, from.id);
       await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: msg.chat.id, message_id: msg.message_id }).catch(
         () => {}
@@ -208,7 +217,7 @@ async function showGroupPicker({ db, bot, from, chat, data }) {
   if (rows.length === 0) {
     await bot.sendMessage(
       chat.id,
-      'Я не вижу групп, где вы и бот являетесь администратором/владельцем, или бот ещё не добавлен в вашу группу.\n\nДобавьте бота в нужную группу, дайте права на отправку и редактирование сообщений, затем повторите /new.'
+      'Я не вижу групп, где вы и бот являетесь администратором/владельцем, или бот ещё не добавлен в вашу группу.\n\nДобавьте бота в нужную группу, дайте права на отправку, редактирование и закрепление сообщений, затем повторите /new.'
     );
     return;
   }
@@ -278,5 +287,30 @@ async function isBotAdmin({ bot, chatId }) {
   const me = await getMe(bot);
   const member = await bot.getChatMember(chatId, me.id);
   return member && (member.status === 'administrator' || member.status === 'creator');
+}
+
+/** Снимает закрепление с предыдущего «объявления» бота в этом чате и закрепляет новое. */
+async function replacePinnedAttendanceMessage({ db, bot, chatId, newMessageId, scheduledMessageId }) {
+  try {
+    const prev = db
+      .prepare(
+        `
+        SELECT tg_message_id
+        FROM scheduled_messages
+        WHERE chat_id = ? AND status = 'sent' AND tg_message_id IS NOT NULL AND id != ?
+        ORDER BY sent_at DESC, id DESC
+        LIMIT 1
+      `
+      )
+      .get(chatId, scheduledMessageId);
+
+    if (prev?.tg_message_id && prev.tg_message_id !== newMessageId) {
+      await bot.unpinChatMessage(chatId, prev.tg_message_id).catch(() => {});
+    }
+
+    await bot.pinChatMessage(chatId, newMessageId, { disable_notification: true });
+  } catch (err) {
+    logger.warn({ err, chatId, newMessageId }, 'pin/unpin failed');
+  }
 }
 
