@@ -61,6 +61,25 @@ function migrate(db) {
       data_json TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS chat_admins (
+      chat_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      username TEXT,
+      display_name TEXT NOT NULL,
+      member_status TEXT NOT NULL,
+      is_admin INTEGER NOT NULL,
+      is_bot INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY(chat_id, user_id),
+      FOREIGN KEY(chat_id) REFERENCES chats(chat_id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_admins_chat_admin
+      ON chat_admins(chat_id, is_admin);
+
+    CREATE INDEX IF NOT EXISTS idx_chat_admins_user_admin
+      ON chat_admins(user_id, is_admin);
   `);
 }
 

@@ -1,4 +1,4 @@
-import { listKnownGroups } from './chats.js';
+import { listGroupsWhereUserAndBotAreAdmins, listKnownGroups } from './chats.js';
 import { clearSession, loadSession, saveSession } from './state.js';
 import { escapeHtml, fmtMoney } from './format.js';
 import { nowMs } from './db.js';
@@ -202,22 +202,14 @@ export async function renderStep({ db, bot, from, chatId, step, data }) {
 }
 
 async function showGroupPicker({ db, bot, from, chat, data }) {
-  const groups = listKnownGroups(db);
-  const rows = [];
-
-  for (const g of groups) {
-    // Only those where BOTH user and bot are admins/owners (best-effort).
-    const okUser = await isGroupAdmin({ bot, userId: from.id, chatId: g.chat_id }).catch(() => false);
-    if (!okUser) continue;
-    const okBot = await isBotAdmin({ bot, chatId: g.chat_id }).catch(() => false);
-    if (!okBot) continue;
-    rows.push([{ text: g.title, callback_data: `new:group:${g.chat_id}` }]);
-  }
+  const me = await getMe(bot);
+  const groups = listGroupsWhereUserAndBotAreAdmins(db, from.id, me.id);
+  const rows = groups.map((g) => [{ text: g.title, callback_data: `new:group:${g.chat_id}` }]);
 
   if (rows.length === 0) {
     await bot.sendMessage(
       chat.id,
-      'Я не вижу групп, где вы и бот являетесь администратором/владельцем, или бот ещё не добавлен в вашу группу.\n\nДобавьте бота в нужную группу, дайте права на отправку, редактирование и закрепление сообщений, затем повторите /new.'
+      'Я не вижу групп, где вы и бот являетесь администратором/владельцем.\n\nДобавьте бота в нужную группу, дайте права на отправку, редактирование и закрепление сообщений. Затем напишите любое сообщение в группе (или дождитесь события изменения админов), и повторите /new.'
     );
     return;
   }

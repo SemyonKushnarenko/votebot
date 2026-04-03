@@ -4,7 +4,7 @@ import { config } from './src/config.js';
 import { logger } from './src/logger.js';
 import { openDb } from './src/db.js';
 import { createBot } from './src/telegram.js';
-import { setChatActive, upsertChat } from './src/chats.js';
+import { listGroupsWhereUserAndBotAreAdmins, setChatActive, upsertChat, upsertChatAdminFromMember } from './src/chats.js';
 import { canUseNew, handleWizardCallback, handleWizardText, startNewWizard } from './src/adminFlow.js';
 import { refreshMessage } from './src/scheduler.js';
 import { setParticipantStatus } from './src/participants.js';
@@ -13,6 +13,7 @@ import { registerBotCommands, renderHelp } from './src/commands.js';
 async function main() {
   const db = openDb();
   const bot = await createBot(config.botToken);
+  const me = await bot.getMe();
 
   registerBotCommands(bot).catch((err) => logger.error({ err }, 'setMyCommands failed'));
 
@@ -27,14 +28,61 @@ async function main() {
       if (newStatus === 'kicked' || newStatus === 'left') {
         setChatActive(db, chat.id, false);
       }
+
+      // Track bot's own admin status in this chat.
+      if (update?.new_chat_member?.user) {
+        upsertChatAdminFromMember({
+          db,
+          chatId: chat.id,
+          user: update.new_chat_member.user,
+          memberStatus: update.new_chat_member.status,
+          isBot: true
+        });
+      }
     } catch (err) {
       logger.error({ err }, 'my_chat_member handler error');
+    }
+  });
+
+  // Track users promoted/demoted (requires bot to receive chat_member updates).
+  bot.on('chat_member', (update) => {
+    try {
+      const chat = update?.chat;
+      if (!chat) return;
+      upsertChat(db, chat);
+
+      const newMember = update?.new_chat_member;
+      if (!newMember?.user) return;
+
+      upsertChatAdminFromMember({
+        db,
+        chatId: chat.id,
+        user: newMember.user,
+        memberStatus: newMember.status,
+        isBot: newMember.user.id === me.id
+      });
+    } catch (err) {
+      logger.error({ err }, 'chat_member handler error');
     }
   });
 
   bot.on('message', async (msg) => {
     try {
       if (msg.chat) upsertChat(db, msg.chat);
+
+      // Safety refresh: if someone writes in a group, re-check their current role and update admin list.
+      if ((msg.chat?.type === 'group' || msg.chat?.type === 'supergroup') && msg.from?.id) {
+        const member = await bot.getChatMember(msg.chat.id, msg.from.id).catch(() => null);
+        if (member?.user) {
+          upsertChatAdminFromMember({
+            db,
+            chatId: msg.chat.id,
+            user: member.user,
+            memberStatus: member.status,
+            isBot: member.user.id === me.id
+          });
+        }
+      }
 
       if (msg.text && msg.text.startsWith('/help')) {
         await bot.sendMessage(msg.chat.id, renderHelp());
