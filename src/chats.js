@@ -80,3 +80,38 @@ export function listGroupsWhereUserAndBotAreAdmins(db, userId, botUserId) {
     .all(userId, botUserId);
 }
 
+/**
+ * Replace admin list snapshot for a chat (best-effort).
+ * Marks all known non-bot users as non-admin, then upserts current admins.
+ *
+ * @param {import('better-sqlite3').Database} db
+ * @param {number} chatId
+ * @param {Array<{ user: any, status: string }>} chatMembersAdmins result of bot.getChatAdministrators()
+ * @param {number} botUserId
+ */
+export function syncChatAdminsSnapshot({ db, chatId, chatMembersAdmins, botUserId }) {
+  if (!chatId) return;
+  const now = nowMs();
+
+  // Demote everyone we previously knew about (except the bot record).
+  db.prepare(
+    `
+    UPDATE chat_admins
+    SET is_admin = 0, member_status = 'member', updated_at = ?
+    WHERE chat_id = ? AND is_bot = 0
+  `
+  ).run(now, chatId);
+
+  // Upsert current admins/owner.
+  for (const m of chatMembersAdmins || []) {
+    if (!m?.user || m.user.id === undefined) continue;
+    upsertChatAdminFromMember({
+      db,
+      chatId,
+      user: m.user,
+      memberStatus: m.status,
+      isBot: m.user.id === botUserId
+    });
+  }
+}
+

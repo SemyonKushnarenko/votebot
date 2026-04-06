@@ -6,7 +6,7 @@ import { config } from './src/config.js';
 import { logger } from './src/logger.js';
 import { openDb } from './src/db.js';
 import { createBot } from './src/telegram.js';
-import { listGroupsWhereUserAndBotAreAdmins, setChatActive, upsertChat, upsertChatAdminFromMember } from './src/chats.js';
+import { setChatActive, syncChatAdminsSnapshot, upsertChat, upsertChatAdminFromMember } from './src/chats.js';
 import { canUseNew, handleWizardCallback, handleWizardText, startNewWizard } from './src/adminFlow.js';
 import { refreshMessage } from './src/scheduler.js';
 import { setParticipantStatus } from './src/participants.js';
@@ -27,6 +27,10 @@ async function main() {
   const db = openDb();
   const bot = await createBot(config.botToken);
   const me = await bot.getMe();
+
+  // Per-chat throttling for full admin list sync (Telegram API is rate-limited).
+  const lastAdminsSyncByChat = new Map();
+  const ADMINS_SYNC_COOLDOWN_MS = 2 * 60 * 1000;
 
   registerBotCommands(bot).catch((err) => logger.error({ err }, 'setMyCommands failed'));
 
@@ -83,8 +87,9 @@ async function main() {
     try {
       if (msg.chat) upsertChat(db, msg.chat);
 
-      // Safety refresh: if someone writes in a group, re-check their current role and update admin list.
+      // Middleware: keep "common groups + admins" up to date for every group message.
       if ((msg.chat?.type === 'group' || msg.chat?.type === 'supergroup') && msg.from?.id) {
+        // 1) Always refresh author role (cheap).
         const member = await bot.getChatMember(msg.chat.id, msg.from.id).catch(() => null);
         if (member?.user) {
           upsertChatAdminFromMember({
@@ -94,6 +99,17 @@ async function main() {
             memberStatus: member.status,
             isBot: member.user.id === me.id
           });
+        }
+
+        // 2) Throttled full snapshot refresh (admins list).
+        const last = lastAdminsSyncByChat.get(msg.chat.id) || 0;
+        const now = Date.now();
+        if (now - last >= ADMINS_SYNC_COOLDOWN_MS) {
+          lastAdminsSyncByChat.set(msg.chat.id, now);
+          const admins = await bot.getChatAdministrators(msg.chat.id).catch(() => null);
+          if (admins) {
+            syncChatAdminsSnapshot({ db, chatId: msg.chat.id, chatMembersAdmins: admins, botUserId: me.id });
+          }
         }
       }
 
