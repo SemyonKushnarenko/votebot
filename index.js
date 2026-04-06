@@ -12,35 +12,8 @@ import { refreshMessage } from './src/scheduler.js';
 import { setParticipantStatus } from './src/participants.js';
 import { registerBotCommands, renderHelp } from './src/commands.js';
 
-async function main() {
-  const app = express();
-  app.use(express.json({ limit: '2mb' }));
+function registerBotHandlers({ bot, db, me, lastAdminsSyncByChat, ADMINS_SYNC_COOLDOWN_MS }) {
 
-  app.get('/healthz', (_req, res) => res.status(200).type('text').send('ok'));
-  app.get('/', (_req, res) => res.status(200).type('text').send('football-bot'));
-
-  app.listen(config.port, () => logger.info({ port: config.port }, 'HTTP server listening'));
-
-  const db = openDb();
-  const bot = await createBot({ token: config.botToken, webhookUrl: config.webhookUrl });
-  const me = await bot.getMe();
-
-  // Telegram webhook endpoint (used when WEBHOOK_URL is set).
-  app.post('/telegram/webhook', (req, res) => {
-    try {
-      bot.processUpdate(req.body);
-      res.sendStatus(200);
-    } catch (err) {
-      logger.error({ err }, 'webhook processUpdate failed');
-      res.sendStatus(500);
-    }
-  });
-
-  // Per-chat throttling for full admin list sync (Telegram API is rate-limited).
-  const lastAdminsSyncByChat = new Map();
-  const ADMINS_SYNC_COOLDOWN_MS = 2 * 60 * 1000;
-
-  registerBotCommands(bot).catch((err) => logger.error({ err }, 'setMyCommands failed'));
 
   // Track chats even if nobody writes messages (e.g. bot added to a group).
   bot.on('my_chat_member', (update) => {
@@ -193,6 +166,40 @@ async function main() {
       await bot.answerCallbackQuery(query.id, { text: 'Ошибка. Попробуйте ещё раз.' }).catch(() => {});
     }
   });
+}
+
+async function main() {
+  const app = express();
+  app.use(express.json({ limit: '2mb' }));
+
+  app.get('/healthz', (_req, res) => res.status(200).type('text').send('ok'));
+  app.get('/', (_req, res) => res.status(200).type('text').send('football-bot'));
+
+  app.listen(config.port, () => logger.info({ port: config.port }, 'HTTP server listening'));
+
+  const db = openDb();
+  const bot = await createBot({ token: config.botToken, webhookUrl: config.webhookUrl });
+  const me = await bot.getMe();
+
+  // Per-chat throttling for full admin list sync (Telegram API is rate-limited).
+  const lastAdminsSyncByChat = new Map();
+  const ADMINS_SYNC_COOLDOWN_MS = 2 * 60 * 1000;
+
+  registerBotHandlers({ bot, db, me, lastAdminsSyncByChat, ADMINS_SYNC_COOLDOWN_MS });
+
+  // Telegram webhook endpoint (used when WEBHOOK_URL is set).
+  app.post('/telegram/webhook', (req, res) => {
+    try {
+      bot.processUpdate(req.body);
+      res.sendStatus(200);
+    } catch (err) {
+      logger.error({ err }, 'webhook processUpdate failed');
+      res.sendStatus(500);
+    }
+  });
+
+  registerBotCommands(bot).catch((err) => logger.error({ err }, 'setMyCommands failed'));
+
 
   process.on('SIGINT', () => process.exit(0));
   process.on('SIGTERM', () => process.exit(0));
