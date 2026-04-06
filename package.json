@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Telegram bot for scheduling group messages with interactive attendance buttons.",
-  "main": "src/index.js",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js"
