@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log*
+yarn-error.log*
+.env
+.env.*
+data
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.git
+.github
+README.md
+agent-transcripts
+terminals
