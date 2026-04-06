@@ -14,6 +14,7 @@ import { registerBotCommands, renderHelp } from './src/commands.js';
 
 async function main() {
   const app = express();
+  app.use(express.json({ limit: '2mb' }));
 
   app.get('/healthz', (_req, res) => res.status(200).type('text').send('ok'));
   app.get('/', (_req, res) => res.status(200).type('text').send('football-bot'));
@@ -21,8 +22,19 @@ async function main() {
   app.listen(config.port, () => logger.info({ port: config.port }, 'HTTP server listening'));
 
   const db = openDb();
-  const bot = await createBot(config.botToken);
+  const bot = await createBot({ token: config.botToken, webhookUrl: config.webhookUrl });
   const me = await bot.getMe();
+
+  // Telegram webhook endpoint (used when WEBHOOK_URL is set).
+  app.post('/telegram/webhook', (req, res) => {
+    try {
+      bot.processUpdate(req.body);
+      res.sendStatus(200);
+    } catch (err) {
+      logger.error({ err }, 'webhook processUpdate failed');
+      res.sendStatus(500);
+    }
+  });
 
   // Per-chat throttling for full admin list sync (Telegram API is rate-limited).
   const lastAdminsSyncByChat = new Map();

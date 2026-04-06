@@ -13,6 +13,7 @@ export const config = {
   botToken: getEnv('BOT_TOKEN', { required: true }),
   tz: getEnv('TZ', { fallback: 'Europe/Moscow' }),
   port: Number(getEnv('PORT', { fallback: '3000' })),
+  webhookUrl: getEnv('WEBHOOK_URL', { fallback: '' }),
   superadmins: new Set(
     String(getEnv('SUPERADMINS', { fallback: '' }))
       .split(',')

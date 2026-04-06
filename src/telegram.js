@@ -8,13 +8,11 @@ function isDuplicatePollingConflict(err) {
 }
 
 /**
- * Polling starts only after dropping Telegram's pending update queue, so restarts
- * do not replay old messages/callbacks that arrived while the bot was offline.
+ * Starts Telegram bot either in webhook mode (preferred on servers) or polling mode.
+ * In both modes, we drop pending updates on startup to avoid replay.
  */
-export async function createBot(token) {
-  const bot = new TelegramBot(token, {
-    polling: { autoStart: false }
-  });
+export async function createBot({ token, webhookUrl }) {
+  const bot = new TelegramBot(token, { polling: false });
 
   bot.on('polling_error', (err) => {
     if (isDuplicatePollingConflict(err)) {
@@ -26,8 +24,15 @@ export async function createBot(token) {
   });
   bot.on('webhook_error', (err) => logger.error({ err }, 'webhook_error'));
 
-  await bot.deleteWebHook({ drop_pending_updates: true });
-  bot.startPolling();
+  const url = String(webhookUrl || '').trim();
+  if (url) {
+    await bot.setWebHook(url, { drop_pending_updates: true });
+    logger.info({ webhookUrl: url }, 'Webhook enabled');
+  } else {
+    await bot.deleteWebHook({ drop_pending_updates: true });
+    bot.startPolling();
+    logger.info('Polling enabled');
+  }
 
   return bot;
 }
