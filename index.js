@@ -1,5 +1,7 @@
 import 'dotenv/config';
 
+import http from 'node:http';
+
 import { config } from './src/config.js';
 import { logger } from './src/logger.js';
 import { openDb } from './src/db.js';
@@ -11,6 +13,17 @@ import { setParticipantStatus } from './src/participants.js';
 import { registerBotCommands, renderHelp } from './src/commands.js';
 
 async function main() {
+  const server = http.createServer((req, res) => {
+    if (req.url === '/healthz') {
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('ok');
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('football-bot');
+  });
+  server.listen(config.port, () => logger.info({ port: config.port }, 'HTTP server listening'));
+
   const db = openDb();
   const bot = await createBot(config.botToken);
   const me = await bot.getMe();

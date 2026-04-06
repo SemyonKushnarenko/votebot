@@ -12,6 +12,7 @@ function getEnv(name, { required = false, fallback = undefined } = {}) {
 export const config = {
   botToken: getEnv('BOT_TOKEN', { required: true }),
   tz: getEnv('TZ', { fallback: 'Europe/Moscow' }),
+  port: Number(getEnv('PORT', { fallback: '3000' })),
   superadmins: new Set(
     String(getEnv('SUPERADMINS', { fallback: '' }))
       .split(',')
