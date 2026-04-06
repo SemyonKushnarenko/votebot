@@ -56,6 +56,7 @@ export function getMessageSnapshot(db, scheduledMessageId) {
   return {
     msg,
     yes,
+    half,
     halfCount: half.length,
     yesCount,
     avg
@@ -80,9 +81,16 @@ export function renderGroupMessageHtml(snapshot) {
     }
   }
 
-  if (snapshot.halfCount > 0) {
-    lines.push('');
-    lines.push(`<b>50/50</b>: ${snapshot.halfCount}`);
+  lines.push('');
+  lines.push(`<b>50/50 (${snapshot.halfCount})</b>`);
+  if (snapshot.halfCount === 0) {
+    lines.push('—');
+  } else {
+    for (const p of snapshot.half) {
+      const name = escapeHtml(p.display_name);
+      const uname = p.username ? ` (@${escapeHtml(p.username)})` : '';
+      lines.push(`- ${name}${uname}`);
+    }
   }
 
   lines.push('');
