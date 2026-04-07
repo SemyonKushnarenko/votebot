@@ -50,10 +50,30 @@ export async function createBot(input) {
     // API surface used by this repo
     getMe: () => grammyBot.api.getMe(),
     sendMessage: (chatId, text, options) => grammyBot.api.sendMessage(chatId, text, options),
+    editMessageText: (text, options) => {
+      const chatId = options?.chat_id;
+      const messageId = options?.message_id;
+      if (!chatId || !messageId) throw new Error('editMessageText: chat_id and message_id are required');
+
+      const { chat_id: _chatId, message_id: _messageId, ...rest } = options || {};
+      return grammyBot.api.editMessageText(chatId, messageId, text, rest);
+    },
+    editMessageReplyMarkup: (replyMarkup, options) => {
+      // node-telegram-bot-api style: editMessageReplyMarkup(replyMarkup, { chat_id, message_id })
+      const chatId = options?.chat_id;
+      const messageId = options?.message_id;
+      if (!chatId || !messageId) throw new Error('editMessageReplyMarkup: chat_id and message_id are required');
+      return grammyBot.api.editMessageReplyMarkup(chatId, messageId, replyMarkup);
+    },
     answerCallbackQuery: (callbackQueryId, options) => grammyBot.api.answerCallbackQuery(callbackQueryId, options),
     getChatMember: (chatId, userId) => grammyBot.api.getChatMember(chatId, userId),
     getChatAdministrators: (chatId) => grammyBot.api.getChatAdministrators(chatId),
     setMyCommands: (commands, options) => grammyBot.api.setMyCommands(commands, options),
+    pinChatMessage: (chatId, messageId, options) => grammyBot.api.pinChatMessage(chatId, messageId, options),
+    unpinChatMessage: (chatId, messageId) =>
+      typeof messageId === 'number' || typeof messageId === 'string'
+        ? grammyBot.api.unpinChatMessage(chatId, { message_id: messageId })
+        : grammyBot.api.unpinChatMessage(chatId),
 
     // Webhook helpers for firebase.js
     processUpdate: (update) => grammyBot.handleUpdate(update),
