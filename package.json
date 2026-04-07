@@ -4,19 +4,21 @@
   "private": true,
   "type": "module",
   "description": "Telegram bot for scheduling group messages with interactive attendance buttons.",
+  "engines": {
+    "node": ">=20 <25"
+  },
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.10.0",
-    "dotenv": "^16.6.1",
-    "express": "^4.21.2",
-    "luxon": "^3.5.0",
-    "node-telegram-bot-api": "^0.66.0",
-    "pino": "^9.9.0",
-    "pino-pretty": "^13.1.1"
+    "better-sqlite3": "^12.8.0",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
+    "grammy": "^1.38.0",
+    "luxon": "^3.7.2",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3"
   }
 }
-
