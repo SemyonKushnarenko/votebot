@@ -2,7 +2,8 @@ import { config } from './config.js';
 
 export async function registerBotCommands(bot) {
   const commands = [
-    { command: 'new', description: 'Создать и отправить сообщение' },
+    { command: 'new', description: 'Создать и отправить сообщение (только админы)' },
+    { command: 'edittext', description: 'Изменить текст последнего сообщения (только админы)' },
     { command: 'help', description: 'Справка по командам' }
   ];
 

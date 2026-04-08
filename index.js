@@ -11,6 +11,7 @@ import { canUseNew, handleWizardCallback, handleWizardText, startNewWizard } fro
 import { refreshMessage } from './src/scheduler.js';
 import { setParticipantStatus } from './src/participants.js';
 import { registerBotCommands, renderHelp } from './src/commands.js';
+import { nowMs } from './src/db.js';
 
 async function main() {
   const app = express();
@@ -111,6 +112,42 @@ async function main() {
 
       if (msg.text && msg.text.startsWith('/help')) {
         await bot.sendMessage(msg.chat.id, renderHelp());
+        return;
+      }
+
+      if (msg.text && msg.text.startsWith('/edittext')) {
+        const text = String(msg.text || '').replace(/^\/edittext(@\w+)?\s*/i, '').trim();
+        if (!text) {
+          await bot.sendMessage(msg.chat.id, 'Использование: /edittext новый текст');
+          return;
+        }
+
+        const ok = await canUseNew({ bot, userId: msg.from.id, chatId: msg.chat.id }).catch(() => false);
+        if (!ok && (msg.chat.type === 'group' || msg.chat.type === 'supergroup')) {
+          await bot.sendMessage(msg.chat.id, 'Команда доступна только администраторам или владельцу группы.');
+          return;
+        }
+
+        const row = db
+          .prepare(
+            `
+            SELECT id, tg_message_id
+            FROM scheduled_messages
+            WHERE chat_id = ? AND status = 'sent' AND tg_message_id IS NOT NULL
+            ORDER BY sent_at DESC, id DESC
+            LIMIT 1
+          `
+          )
+          .get(msg.chat.id);
+
+        if (!row?.id || !row?.tg_message_id) {
+          await bot.sendMessage(msg.chat.id, 'Не нашёл последнее отправленное сообщение бота в этой группе.');
+          return;
+        }
+
+        db.prepare('UPDATE scheduled_messages SET text = ?, created_at = ? WHERE id = ?').run(text, nowMs(), row.id);
+        await refreshMessage({ db, bot, scheduledMessageId: row.id });
+        await bot.sendMessage(msg.chat.id, 'Обновил текст в последнем сообщении ✅');
         return;
       }
 
