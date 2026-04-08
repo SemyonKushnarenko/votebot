@@ -147,7 +147,19 @@ async function main() {
 
         db.prepare('UPDATE scheduled_messages SET text = ?, created_at = ? WHERE id = ?').run(text, nowMs(), row.id);
         await refreshMessage({ db, bot, scheduledMessageId: row.id });
-        await bot.sendMessage(msg.chat.id, 'Обновил текст в последнем сообщении ✅');
+
+        // Keep the chat clean: remove the /edittext command message (best-effort).
+        if (typeof bot.deleteMessage === 'function' && msg.message_id) {
+          await bot.deleteMessage(msg.chat.id, msg.message_id).catch(() => {});
+        }
+
+        // Optional short confirmation that also auto-deletes.
+        const ack = await bot.sendMessage(msg.chat.id, 'Текст обновлён ✅').catch(() => null);
+        if (ack?.message_id && typeof bot.deleteMessage === 'function') {
+          setTimeout(() => {
+            bot.deleteMessage(msg.chat.id, ack.message_id).catch(() => {});
+          }, 2500);
+        }
         return;
       }
 

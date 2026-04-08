@@ -69,6 +69,7 @@ export async function createBot(input) {
     getChatMember: (chatId, userId) => grammyBot.api.getChatMember(chatId, userId),
     getChatAdministrators: (chatId) => grammyBot.api.getChatAdministrators(chatId),
     setMyCommands: (commands, options) => grammyBot.api.setMyCommands(commands, options),
+    deleteMessage: (chatId, messageId) => grammyBot.api.deleteMessage(chatId, messageId),
     pinChatMessage: (chatId, messageId, options) => grammyBot.api.pinChatMessage(chatId, messageId, options),
     unpinChatMessage: (chatId, messageId) =>
       typeof messageId === 'number' || typeof messageId === 'string'
